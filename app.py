@@ -98,6 +98,41 @@ def refresh_history() -> None:
     load_history.clear()
 
 
+def copy_button(text: str, key: str) -> None:
+    """One green button that copies the (edited) draft to the clipboard."""
+    import json
+
+    # Escape so draft text can never close the <script> tag.
+    payload = json.dumps(text).replace("</", "<\\/").replace("<!--", "<\\!--")
+    html = f"""
+        <button id="{key}" style="background:#166534;color:#fff;border:0;border-radius:8px;
+                padding:8px 18px;font:600 14px sans-serif;cursor:pointer;">📋 Copy text</button>
+        <span id="{key}_msg" style="font:13px sans-serif;color:#166534;margin-left:10px;"></span>
+        <script>
+        const text = {payload};
+        const btn = document.getElementById("{key}");
+        const msg = document.getElementById("{key}_msg");
+        function done(ok) {{ msg.textContent = ok ? "Copied ✓" : "Copy blocked – select the text above and press Ctrl+C"; }}
+        btn.onclick = () => {{
+          if (navigator.clipboard && window.isSecureContext) {{
+            navigator.clipboard.writeText(text).then(() => done(true)).catch(fallback);
+          }} else {{ fallback(); }}
+        }};
+        function fallback() {{
+          const ta = document.createElement("textarea");
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          let ok = false; try {{ ok = document.execCommand("copy"); }} catch (e) {{}}
+          document.body.removeChild(ta); done(ok);
+        }}
+        </script>
+        """
+    if hasattr(st, "iframe"):          # Streamlit >= 1.5x
+        st.iframe(html, height=48)
+    else:                              # older Streamlit
+        import streamlit.components.v1 as components
+        components.html(html, height=48)
+
+
 # ------------------------------------------------------------------ login
 user = auth.login_gate(header)
 if not user:
@@ -248,8 +283,7 @@ def page_create() -> None:
             placeholders = edited.count("[ADD")
             st.caption(f"{len(edited)} characters · {len(edited.split())} words"
                        + (f" · ⚠️ {placeholders} placeholder(s) to fill" if placeholders else ""))
-            st.markdown("**Copy** (use the copy icon at the top-right of the box):")
-            st.code(edited, language=None)
+            copy_button(edited, key=f"copy_{i}")
             if saved.get(i):
                 st.success("Marked as used ✓ – future drafts will avoid repeating it.")
             elif st.button("✅ Mark as used (I posted / will post this)", key=f"save_{i}"):
@@ -360,7 +394,7 @@ def page_help() -> None:
 2. **Add a topic or notes** (optional) – e.g. a public news item, a deadline, an event. Leave blank and the app picks a timely angle.
 3. **Generate** – you get 1–3 drafts, each with a different angle. A yellow box warns if a draft is too close to something we already posted.
 4. **Review and edit** – check every fact, fill any `[ADD SOURCE]` / `[ADD LINK]`, adjust the wording.
-5. **Copy** from the box and post on LinkedIn (or wherever it goes).
+5. **Copy** with the green *Copy text* button (it copies your edited version) and post on LinkedIn (or wherever it goes).
 6. **Mark as used** – this saves it to the history so future drafts don't repeat it.
 
 **Adding knowledge:** add a `.md` file to the right `kb/` folder in GitHub (`carbalyze/`, `epr/`, `carboventory/`, `blogs/`, `company/`). Start the file with a short header (title, type, product, url, retrieved date) – copy any existing file as a template.
